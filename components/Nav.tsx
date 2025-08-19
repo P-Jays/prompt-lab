@@ -14,7 +14,8 @@ import {
 import { BuiltInProviderType } from "next-auth/providers/index";
 
 const Nav = () => {
-  const isUserLoggedIn = true;
+  const {data: session} = useSession();
+  const avatar = session?.user?.image ?? '/assets/images/logo.svg';  
 
   // const [providers, setProviders] = useState(null);
   const [providers, setProviders] = useState<null | Record<
@@ -47,7 +48,7 @@ const Nav = () => {
 
       {/* Desktop Navigation */}
       <div className="sm:flex hidden">
-        {isUserLoggedIn ? (
+        {session?.user ? (
           <div className="flex gap-3 md:gap-5">
             <Link href={"/create-prompt"} className="black_btn">
               Create Post
@@ -64,7 +65,7 @@ const Nav = () => {
             </button>
             <Link href={"/profile"}>
               <Image
-                src={"/assets/images/logo.svg"}
+                src={avatar}
                 width={37}
                 height={37}
                 className="rounded-full"
@@ -91,10 +92,10 @@ const Nav = () => {
       </div>
       {/* Mobile Nav */}
       <div className="sm:hidden flex relative">
-        {isUserLoggedIn ? (
+        {session?.user ? (
           <div className="flex">
             <Image
-              src={"/assets/images/logo.svg"}
+              src={avatar}
               width={37}
               height={37}
               className="rounded-full"
@@ -133,7 +134,7 @@ const Nav = () => {
                   type="button"
                   key={providers.name}
                   onClick={() => signIn(providers.id)}
-                  className="black-btn"
+                  className="black_btn"
                 >
                   Sign In
                 </button>
