@@ -1,8 +1,18 @@
-import React from 'react'
+import React, { ReactNode } from 'react'
 
-const Provider = () => {
+import { SessionProvider } from 'next-auth/react'
+import { Session } from 'next-auth';
+
+type Props = {
+  children: ReactNode;
+  session?: Session; // optional; pass it if you fetch on the server
+};
+
+const Provider = ({children, session}: Props) => {
   return (
-    <div>Provider</div>
+    <SessionProvider session={session}>
+      {children}
+    </SessionProvider>
   )
 }
 
