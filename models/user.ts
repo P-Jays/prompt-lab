@@ -1,4 +1,4 @@
-import { Schema, model, models } from "mongoose";
+import { InferSchemaType, Model, Schema, model, models } from "mongoose";
 
 const UserSchema = new Schema({
   email: {
@@ -19,6 +19,13 @@ const UserSchema = new Schema({
   },
 });
 
-const User = models.User || model("User", UserSchema);
+// The doc shape (no _id here; Mongoose will add it)
+export type User = InferSchemaType<typeof UserSchema>;
 
-export default User;
+// The model type for queries
+export type UserModel = Model<User>;
+
+const UserModel =
+  (models.User as UserModel | undefined) ?? model<User, UserModel>("User", UserSchema);
+
+export default UserModel;

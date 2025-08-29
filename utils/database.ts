@@ -1,22 +1,23 @@
+// src/utils/database.ts
 import mongoose from "mongoose";
+const URI = process.env.MONGODB_URI;
+if (!URI) throw new Error("Missing MONGODB_URI");
 
-let isConnected = false; // track connection status
+declare global {
+  // eslint-disable-next-line no-var
+  var _mongoose: { conn: typeof mongoose | null; promise: Promise<typeof mongoose> | null } | undefined;
+}
 
-export const connectToDB = async () => {
-  mongoose.set("strictQuery", true);
+const cached = global._mongoose ?? { conn: null, promise: null };
+global._mongoose = cached;
 
-  if (isConnected) {
-    console.log("MongoDB is already connected");
-    return;
+export async function connectToDB() {
+  if (cached.conn) return cached.conn;
+  if (!cached.promise) {
+    mongoose.set("strictQuery", true);
+    mongoose.set("bufferCommands", false);
+    cached.promise = mongoose.connect(URI as string, { dbName: "share_Prompt", bufferCommands: false }).then((m) => m);
   }
-
-  try {
-    await mongoose.connect(process.env.MONGODB_URI as string, {
-      dbName: "share_Prompt",
-    });
-    isConnected = true;
-    console.log("MongoDB Connected");
-  } catch (error) {
-    console.error(error);
-  }
-};
+  cached.conn = await cached.promise;
+  return cached.conn;
+}

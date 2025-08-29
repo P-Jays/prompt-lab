@@ -1,104 +1,78 @@
-// app/api/auth/[...nextauth]/route.ts  (App Router)
-// or pages/api/auth/[...nextauth].ts   (Pages Router)
-
-import NextAuth, { NextAuthOptions } from "next-auth";
+// app/api/auth/[...nextauth]/route.ts
+import NextAuth, { type NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { connectToDB } from "@/utils/database";
 import User from "@/models/user";
+import type { Types } from "mongoose";
 
-export const authOptions = {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type OnlyId = { _id: Types.ObjectId };
+
+export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
     }),
   ],
   session: { strategy: "jwt" },
-  callbacks: {
-    async session({ session, token }) {
-      if (session.user && token?.sub) {
-        session.user.id = token.sub;
-      }
-      const sessionUser = await User.findOne({
-        email: session.user?.email,
-      });
-      if (session.user) {
-        session.user.id = sessionUser._id.toString();
-      }
 
+  callbacks: {
+    async jwt({ token }) {
+      const email = token.email;
+      if (!email) return token;
+
+      await connectToDB();
+
+      // Return only {_id} and tell TS exactly what that shape is
+      const u = await User.findOne({ email })
+        .select("_id")
+        .lean<OnlyId>()
+        .exec();
+
+      if (u?._id) token.userId = u._id.toString();
+      return token;
+    },
+
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.userId ?? token.sub ?? undefined;
+      }
       return session;
     },
+
     async signIn({ profile }) {
-      try {
-        // await connectToDB();
+      await connectToDB();
 
-        // const userExists = await User.findOne({
-        //   email: profile?.email,
-        // });
-        // if (!userExists) {
-        //   await User.create({
-        //     email: profile?.email,
-        //     userName: profile?.name ,
-        //     image: profile?.image,
-        //   });
-        // } else {
-        //   return true
-        // }
+      const email = typeof profile?.email === "string" ? profile.email : undefined;
+      if (!email) return false;
 
-        await connectToDB();
+      const exists = await User.exists({ email }); // -> { _id: ObjectId } | null
+      if (exists) return true;
 
-        const email = profile?.email;
-        if (!email) return false;
+      const base = (typeof profile?.name === "string" ? profile.name : undefined) ?? email.split("@")[0] ?? "user";
+      const sanitized = base.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9_]/g, "").slice(0, 24) || "user";
 
-        const existing = await User.findOne({ email });
-        if (existing) return true;
-
-        // Build a base username from several fallbacks
-        const base =
-          profile?.name ??
-          // (profile)?.given_name ??
-          email.split("@")[0] ??
-          "user";
-
-        const sanitized =
-          base
-            .toLowerCase()
-            .replace(/\s+/g, "")
-            .replace(/[^a-z0-9_]/g, "")
-            .slice(0, 24) || "user";
-
-        // Ensure uniqueness (add digits if needed)
-        let username = sanitized;
-        for (let i = 0; i < 10; i++) {
-          const candidate =
-            i === 0
-              ? username
-              : `${sanitized}${Math.floor(Math.random() * 10000)}`;
-          const taken = await User.exists({ username: candidate });
-          if (!taken) {
-            username = candidate;
-            break;
-          }
-        }
-
-        await User.create({
-          email,
-          username,
-          image: profile?.image,
-        });
-      } catch (error) {
-        console.log(error);
-        return false;
+      let username = sanitized;
+      for (let i = 0; i < 10; i++) {
+        const candidate = i === 0 ? username : `${sanitized}${Math.floor(Math.random() * 10000)}`;
+        if (!(await User.exists({ username: candidate }))) { username = candidate; break; }
       }
+
+      const image =
+        typeof (profile as Record<string, unknown>)?.["picture"] === "string"
+          ? (profile as Record<string, string>)["picture"]
+          : typeof profile?.image === "string"
+          ? profile.image
+          : undefined;
+
+      await User.create({ email, username, image });
       return true;
     },
   },
-} satisfies NextAuthOptions;
+};
 
 const handler = NextAuth(authOptions);
-
-// App Router:
 export { handler as GET, handler as POST };
-
-// Pages Router:
-// export default handler
