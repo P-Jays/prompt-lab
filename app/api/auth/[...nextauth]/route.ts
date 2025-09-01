@@ -1,14 +1,23 @@
-// app/api/auth/[...nextauth]/route.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import NextAuth, { type NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { connectToDB } from "@/utils/database";
-import User from "@/models/user";
-import type { Types } from "mongoose";
+import { log } from "@/lib/logger";
+import {
+  ensureUserWithImage,
+  findUserIdAndImageByEmail,
+} from "@/lib/userService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type OnlyId = { _id: Types.ObjectId };
+function getGoogleImage(profile: unknown): string | null {
+  const pic = (profile as any)?.picture;
+  const img = (profile as any)?.image;
+  const chosen =
+    typeof pic === "string" ? pic : typeof img === "string" ? img : null;
+  return chosen && /^https?:\/\//.test(chosen) ? chosen : null;
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -18,58 +27,55 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: { strategy: "jwt" },
+  debug: true, // leave on while verifying; turn off in prod
 
   callbacks: {
+    async signIn({ profile }) {
+      await connectToDB();
+      const email =
+        typeof profile?.email === "string" ? profile.email : undefined;
+      if (!email) {
+        log.warn("signIn: missing email in provider profile");
+        return false;
+      }
+
+      const image = getGoogleImage(profile);
+      const name = typeof profile?.name === "string" ? profile.name : null;
+
+      try {
+        const res = await ensureUserWithImage({ email, name, image });
+        if (res.created) log.info("signIn: user created", { email });
+        if (res.backfilled) log.info("signIn: image backfilled", { email });
+        return true;
+      } catch (e) {
+        log.error("signIn: DB error", e);
+        return false; // fail sign-in gracefully
+      }
+    },
+
     async jwt({ token }) {
       const email = token.email;
       if (!email) return token;
 
       await connectToDB();
+      try {
+        const u = await findUserIdAndImageByEmail(email);
+        if (u?._id) token.userId = u._id.toString();
+        token.picture = (u?.image ?? token.picture ?? null) as any;
+      } catch (e) {
+        log.error("jwt: DB read failed", e);
+        // degrade gracefully: keep existing token
+      }
 
-      // Return only {_id} and tell TS exactly what that shape is
-      const u = await User.findOne({ email })
-        .select("_id")
-        .lean<OnlyId>()
-        .exec();
-
-      if (u?._id) token.userId = u._id.toString();
       return token;
     },
 
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.userId ?? token.sub ?? undefined;
+        (session.user as any).id = token.userId ?? token.sub ?? undefined;
+        session.user.image = token.picture ?? session.user.image ?? null;
       }
       return session;
-    },
-
-    async signIn({ profile }) {
-      await connectToDB();
-
-      const email = typeof profile?.email === "string" ? profile.email : undefined;
-      if (!email) return false;
-
-      const exists = await User.exists({ email }); // -> { _id: ObjectId } | null
-      if (exists) return true;
-
-      const base = (typeof profile?.name === "string" ? profile.name : undefined) ?? email.split("@")[0] ?? "user";
-      const sanitized = base.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9_]/g, "").slice(0, 24) || "user";
-
-      let username = sanitized;
-      for (let i = 0; i < 10; i++) {
-        const candidate = i === 0 ? username : `${sanitized}${Math.floor(Math.random() * 10000)}`;
-        if (!(await User.exists({ username: candidate }))) { username = candidate; break; }
-      }
-
-      const image =
-        typeof (profile as Record<string, unknown>)?.["picture"] === "string"
-          ? (profile as Record<string, string>)["picture"]
-          : typeof profile?.image === "string"
-          ? profile.image
-          : undefined;
-
-      await User.create({ email, username, image });
-      return true;
     },
   },
 };
