@@ -5,8 +5,8 @@ export interface ProfileCompProps {
   name: string;
   desc: string;
   data: Prompt[];
-  handleEdit?: (tag: string) => void;
-  handleDelete?: (tag: string) => void;
+  handleEdit?: (id: string) => void;
+  handleDelete?: (id: string) => void;
 }
 
 const ProfileComponent: React.FC<ProfileCompProps> = ({

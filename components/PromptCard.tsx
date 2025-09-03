@@ -27,6 +27,8 @@ const PromptCard: React.FC<PromptCardProps> = ({
     navigator.clipboard.writeText(post.prompt);
     setTimeout(() => setCopied(""), 3000);
   };
+  const isOwner = String(session?.user?.id ?? "") === String((post as Prompt)?.creator?._id ?? "");
+
   return (
     // <div className="prompt_card">
     //   <p className="text-sm">{post.prompt}</p>
@@ -75,19 +77,19 @@ const PromptCard: React.FC<PromptCardProps> = ({
         className="font-inter text-sm blue_gradient cursor-pointer"
         onClick={() => handleTagClick && handleTagClick(post.tag)}
       >
-        {post.tag}
+        #{post.tag}
       </p>
       {session?.user?.id === post.creator._id && pathName === "/profile" && (
         <div className="mt-5 flex-center gap-4 border-t border-gray-100">
           <p
             className="font-inter text-sm green_gradient cursor-pointer"
-            onClick={() => handleEdit}
+            onClick={() => handleEdit?.(post._id)}
           >
             Edit
           </p>
           <p
             className="font-inter text-sm orange_gradient cursor-pointer"
-            onClick={() => handleEdit}
+            onClick={() => handleDelete?.(post._id)}
           >
             Delete
           </p>
