@@ -1,64 +1,12 @@
-'use client';
+import { Suspense } from "react";
+import UpdatePromptInner from "./update-prompt-inner";
 
-import Form from '@/components/Form';
-import { useSession } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { FormEvent, useEffect, useState } from 'react';
+export const dynamic = "force-dynamic"; // avoid prerender errors for query-based page
 
-
-const UpdatePrompt = () => {
-    const {data: session} = useSession();
-    const router= useRouter();
-    const searchParams = useSearchParams();
-    const promptId = searchParams.get('id');
-    const [submitting, setSubmitting] = useState(false);
-    const [post, setPost] = useState({
-        prompt:'',
-        tag: '',
-    });
-
-    useEffect(()=> {
-      const getPromptDetails = async () => {
-        const response = await fetch(`/api/prompt/${promptId}`);
-        const data = await response.json();
-
-        setPost({
-          prompt: data.prompt,
-          tag: data.tag,
-        })
-      }
-      if (promptId) {
-        getPromptDetails();
-      }
-    }, [promptId])
-
-    const updatePrompt = async (e: FormEvent<HTMLFormElement>) =>{
-      e.preventDefault();
-      setSubmitting(true);
-
-      if (!promptId) return alert('PromptId Not found')
-
-      try {
-        const response = await fetch (`/api/prompt/${promptId}`,
-          {
-            method: 'PATCH',
-            body: JSON.stringify({
-              prompt: post.prompt,
-              tag: post.tag,
-            })
-          })
-          if (response.ok) {
-            router.push('/');
-          }
-      } catch(error) {
-        console.log(error);
-      } finally {
-        setSubmitting(false);
-      }
-    }
+export default function UpdatePromptPage() {
   return (
-    <Form type="Edit" post={post} setPost={setPost} submitting={submitting} handleSubmit={updatePrompt}></Form>
-  )
+    <Suspense fallback={<div className="p-6">Loading…</div>}>
+      <UpdatePromptInner />
+    </Suspense>
+  );
 }
-
-export default UpdatePrompt
