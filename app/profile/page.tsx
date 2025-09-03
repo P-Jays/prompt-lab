@@ -24,27 +24,7 @@ const Profile = () => {
       fetchPosts();
     }
   }, [session?.user?.id]);
-  //   const handleDelete = async (post: any) => {
-  //     const hasConfirmed = confirm("Are you sure want to delete this prompt?");
-  //     console.log(post);
-  //     console.log(posts);
 
-  //     if (!hasConfirmed) {
-  //         try {
-  //             await fetch(`/api/prompt/${post._id}`, {
-  //                 method: 'DELETE',
-  //             })
-
-  //         console.log(post);
-
-  //         const filteredPosts = posts.filter((p: Prompt)=> p._id !== post._id);
-  //         setPosts(filteredPosts);
-  //         } catch (error) {
-  //             console.log(error);
-  //         }
-  //     }
-
-  //   };
   const handleDelete = async (id: string) => {
     const hasConfirmed = confirm(
       "Are you sure you want to delete this prompt?"
@@ -64,7 +44,7 @@ const Profile = () => {
   };
 
   const handleEdit = async (_id: any) => {
-    console.log("edit", _id);
+    // console.log("edit", _id);
 
     router.push(`/update-prompt?id=${_id}`);
   };
