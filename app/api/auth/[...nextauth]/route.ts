@@ -3,10 +3,7 @@ import NextAuth, { type NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { connectToDB } from "@/utils/database";
 import { log } from "@/lib/logger";
-import {
-  ensureUserWithImage,
-  findUserIdAndImageByEmail,
-} from "@/lib/userService";
+import { ensureUserWithImage, findUserIdAndImageByEmail } from "@/lib/userService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,12 +11,11 @@ export const dynamic = "force-dynamic";
 function getGoogleImage(profile: unknown): string | null {
   const pic = (profile as any)?.picture;
   const img = (profile as any)?.image;
-  const chosen =
-    typeof pic === "string" ? pic : typeof img === "string" ? img : null;
+  const chosen = typeof pic === "string" ? pic : typeof img === "string" ? img : null;
   return chosen && /^https?:\/\//.test(chosen) ? chosen : null;
 }
 
-export const authOptions: NextAuthOptions = {
+const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID as string,
@@ -27,21 +23,17 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: { strategy: "jwt" },
-  debug: true, // leave on while verifying; turn off in prod
-
+  debug: true,
   callbacks: {
     async signIn({ profile }) {
       await connectToDB();
-      const email =
-        typeof profile?.email === "string" ? profile.email : undefined;
+      const email = typeof profile?.email === "string" ? profile.email : undefined;
       if (!email) {
         log.warn("signIn: missing email in provider profile");
         return false;
       }
-
       const image = getGoogleImage(profile);
       const name = typeof profile?.name === "string" ? profile.name : null;
-
       try {
         const res = await ensureUserWithImage({ email, name, image });
         if (res.created) log.info("signIn: user created", { email });
@@ -49,14 +41,13 @@ export const authOptions: NextAuthOptions = {
         return true;
       } catch (e) {
         log.error("signIn: DB error", e);
-        return false; // fail sign-in gracefully
+        return false;
       }
     },
 
     async jwt({ token }) {
       const email = token.email;
       if (!email) return token;
-
       await connectToDB();
       try {
         const u = await findUserIdAndImageByEmail(email);
@@ -64,9 +55,7 @@ export const authOptions: NextAuthOptions = {
         token.picture = (u?.image ?? token.picture ?? null) as any;
       } catch (e) {
         log.error("jwt: DB read failed", e);
-        // degrade gracefully: keep existing token
       }
-
       return token;
     },
 
