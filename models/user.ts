@@ -25,6 +25,7 @@ const UserSchema = new Schema({
   image: {
     type: String,
   },
+  displayName: { type: String, required: true },
 });
 
 // The doc shape (no _id here; Mongoose will add it)

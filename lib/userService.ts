@@ -6,22 +6,21 @@ const MAX = 20;
 
 function sanitizeBase(input: string): string {
   let s = input.toLowerCase().replace(/[^a-z0-9_]/g, "");
-  if (!/^[a-z]/.test(s)) s = `u${s}`; // must start with a letter
-  if (s.length < MIN) s = s.padEnd(MIN, "0"); // pad to min length
-  return s.slice(0, MAX); // cap at max length
+  if (!/^[a-z]/.test(s)) s = `u${s}`;
+  if (s.length < MIN) s = s.padEnd(MIN, "0");
+  return s.slice(0, MAX);
 }
 
-/** Narrowed shape for lean() */
 export type UserIdImage = {
   _id: { toString(): string };
   image?: string | null;
   username?: string | null;
+  displayName?: string | null;
 };
 
-/** Read minimal fields needed by auth flow */
 export async function findUserIdAndImageByEmail(email: string) {
   return User.findOne({ email })
-    .select("_id image username")
+    .select("_id image username displayName")
     .lean<UserIdImage>()
     .exec();
 }
@@ -34,11 +33,10 @@ function baseFromNameEmail(name?: string | null, email?: string): string {
 }
 
 async function generateUniqueUsername(base: string): Promise<string> {
-  // try base, then base+random until unique
   for (let i = 0; i < 50; i++) {
     const suffix =
       i === 0 ? "" : String(Math.floor(Math.random() * 1e9)).padStart(4, "0");
-    const candidate = (base + suffix).slice(0, MAX); // keep within 20
+    const candidate = (base + suffix).slice(0, MAX);
     const exists = await User.exists({ username: candidate });
     if (!exists) return candidate;
   }
@@ -47,24 +45,22 @@ async function generateUniqueUsername(base: string): Promise<string> {
 
 export async function ensureUserWithImage(opts: {
   email: string;
-  name?: string | null;
+  name?: string | null; // provider name (Unicode ok)
   image?: string | null;
 }) {
-  // const existing = await User.findOne({ email: opts.email })
-  //   .select("_id image username")
-  //   .lean<{ _id: any; image?: string | null; username?: string | null }>();
-
   const existing = await findUserIdAndImageByEmail(opts.email);
 
   if (!existing) {
     const base = baseFromNameEmail(opts.name ?? null, opts.email);
     const username = await generateUniqueUsername(base);
+    const displayName =
+      (opts.name && opts.name.trim()) || (opts.email?.split("@")[0] ?? "User");
 
-    // retry once if DB race triggers E11000
     try {
       await User.create({
         email: opts.email,
-        username,
+        username, // ASCII handle
+        displayName, // Unicode display name
         image: opts.image ?? null,
       });
       return { created: true, backfilled: false };
@@ -74,6 +70,7 @@ export async function ensureUserWithImage(opts: {
         await User.create({
           email: opts.email,
           username: retry,
+          displayName,
           image: opts.image ?? null,
         });
         return { created: true, backfilled: false };
@@ -82,12 +79,20 @@ export async function ensureUserWithImage(opts: {
     }
   }
 
+  // backfill image
   if (!existing.image && opts.image) {
     await User.updateOne(
       { email: opts.email },
       { $set: { image: opts.image } }
     );
     return { created: false, backfilled: true };
+  }
+
+  // optional: backfill displayName if missing
+  if (!existing.displayName && (opts.name || opts.email)) {
+    const displayName =
+      (opts.name && opts.name.trim()) || (opts.email?.split("@")[0] ?? "User");
+    await User.updateOne({ email: opts.email }, { $set: { displayName } });
   }
 
   return { created: false, backfilled: false };

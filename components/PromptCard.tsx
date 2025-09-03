@@ -59,7 +59,7 @@ const PromptCard: React.FC<PromptCardProps> = ({
           ></Image>
           <div className="flex flex-col">
             <h3 className="m-1 font-satoshi font-semibold text-gray-900">
-              {post.creator.username}
+              {post.creator.displayName ?? post.creator.username}
             </h3>
             <p className="m-1 font-inter text-sm text-gray-500">
               {post.creator.email}
