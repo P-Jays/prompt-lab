@@ -27,8 +27,14 @@ const PromptCard: React.FC<PromptCardProps> = ({
     navigator.clipboard.writeText(post.prompt);
     setTimeout(() => setCopied(""), 3000);
   };
-  const isOwner = String(session?.user?.id ?? "") === String((post as Prompt)?.creator?._id ?? "");
 
+  const handleProfileClick = () => {
+    // console.log(post);
+    
+    if (post.creator._id === session?.user?.id) return router.push("/profile");
+
+    router.push(`/profile/${post.creator._id}?name=${post.creator.username}`);
+  };
   return (
     // <div className="prompt_card">
     //   <p className="text-sm">{post.prompt}</p>
@@ -42,7 +48,8 @@ const PromptCard: React.FC<PromptCardProps> = ({
     // </div>
     <div className="prompt_card">
       <div className="flex justify-between items-start gap-5">
-        <div className="flex-1 flex justify-start items-center gap-3 cursor-pointer">
+        <div className="flex-1 flex justify-start items-center gap-3 cursor-pointer"
+        onClick={handleProfileClick}>
           <Image
             src={post.creator.image ?? "/assets/images/logo.svg"}
             alt="user_images"
